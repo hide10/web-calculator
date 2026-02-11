@@ -4,6 +4,7 @@
 
   let current = "0";
   let expression = "";
+  let accumulator = null;
   let lastOperator = "";
   let resetNext = false;
 
@@ -27,25 +28,34 @@
     }
   }
 
+  function applyOperation(op, a, b) {
+    switch (op) {
+      case "+": return a + b;
+      case "-": return a - b;
+      case "*": return a * b;
+      case "/": return b === 0 ? NaN : a / b;
+      default: return b;
+    }
+  }
+
   function handleOperator(op) {
-    expression = current + " " + { "/": "\u00f7", "*": "\u00d7", "-": "\u2212", "+": "+" }[op] + " ";
+    const currentValue = parseFloat(current);
+    if (accumulator === null) {
+      accumulator = currentValue;
+    } else if (!resetNext) {
+      accumulator = applyOperation(lastOperator, accumulator, currentValue);
+    }
+    expression = formatNumber(accumulator) + " " + { "/": "\u00f7", "*": "\u00d7", "-": "\u2212", "+": "+" }[op] + " ";
     lastOperator = op;
     resetNext = true;
   }
 
   function handleEqual() {
-    if (!lastOperator) return;
-    const a = parseFloat(expression);
-    const b = parseFloat(current);
-    let result;
-    switch (lastOperator) {
-      case "+": result = a + b; break;
-      case "-": result = a - b; break;
-      case "*": result = a * b; break;
-      case "/": result = b === 0 ? NaN : a / b; break;
-    }
+    if (!lastOperator || accumulator === null) return;
+    const result = applyOperation(lastOperator, accumulator, parseFloat(current));
     expression = "";
     lastOperator = "";
+    accumulator = null;
     current = isNaN(result) ? "Error" : formatNumber(result);
     resetNext = true;
   }
@@ -62,6 +72,7 @@
   function handleClear() {
     current = "0";
     expression = "";
+    accumulator = null;
     lastOperator = "";
     resetNext = false;
   }
