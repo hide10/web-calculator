@@ -1,9 +1,11 @@
 (function () {
   const expressionEl = document.getElementById("expression");
   const resultEl = document.getElementById("result");
+  const operatorSymbols = { "/": "\u00f7", "*": "\u00d7", "-": "\u2212", "+": "+" };
 
   let current = "0";
   let expression = "";
+  let storedValue = null;
   let lastOperator = "";
   let resetNext = false;
 
@@ -18,6 +20,46 @@
     return str;
   }
 
+  function calculate(left, right, operator) {
+    switch (operator) {
+      case "+":
+        return left + right;
+      case "-":
+        return left - right;
+      case "*":
+        return left * right;
+      case "/":
+        return right === 0 ? NaN : left / right;
+      default:
+        return right;
+    }
+  }
+
+  function clearErrorIfNeeded(action) {
+    if (current === "Error" && action !== "clear") {
+      handleClear();
+    }
+  }
+
+  function applyPendingOperation() {
+    if (storedValue === null) {
+      storedValue = parseFloat(current);
+    } else if (lastOperator && !resetNext) {
+      storedValue = calculate(storedValue, parseFloat(current), lastOperator);
+    }
+
+    current = formatNumber(storedValue);
+    if (current === "Error") {
+      storedValue = null;
+      expression = "";
+      lastOperator = "";
+      resetNext = true;
+      return false;
+    }
+
+    return true;
+  }
+
   function handleNumber(value) {
     if (resetNext) {
       current = value;
@@ -28,23 +70,28 @@
   }
 
   function handleOperator(op) {
-    expression = current + " " + { "/": "\u00f7", "*": "\u00d7", "-": "\u2212", "+": "+" }[op] + " ";
+    if (current === "Error") return;
+
+    if (lastOperator && resetNext) {
+      expression = formatNumber(storedValue) + " " + operatorSymbols[op] + " ";
+      lastOperator = op;
+      return;
+    }
+
+    if (!applyPendingOperation()) {
+      return;
+    }
+
+    expression = current + " " + operatorSymbols[op] + " ";
     lastOperator = op;
     resetNext = true;
   }
 
   function handleEqual() {
-    if (!lastOperator) return;
-    const a = parseFloat(expression);
-    const b = parseFloat(current);
-    let result;
-    switch (lastOperator) {
-      case "+": result = a + b; break;
-      case "-": result = a - b; break;
-      case "*": result = a * b; break;
-      case "/": result = b === 0 ? NaN : a / b; break;
-    }
+    if (!lastOperator || storedValue === null) return;
+    const result = calculate(storedValue, parseFloat(current), lastOperator);
     expression = "";
+    storedValue = null;
     lastOperator = "";
     current = isNaN(result) ? "Error" : formatNumber(result);
     resetNext = true;
@@ -62,6 +109,7 @@
   function handleClear() {
     current = "0";
     expression = "";
+    storedValue = null;
     lastOperator = "";
     resetNext = false;
   }
@@ -85,9 +133,7 @@
 
     const action = btn.dataset.action;
 
-    if (current === "Error" && action !== "clear") {
-      handleClear();
-    }
+    clearErrorIfNeeded(action);
 
     switch (action) {
       case "number": handleNumber(btn.dataset.value); break;
@@ -102,13 +148,25 @@
   });
 
   document.addEventListener("keydown", function (e) {
-    if (e.key >= "0" && e.key <= "9") handleNumber(e.key);
-    else if (e.key === ".") handleDecimal();
-    else if (["+", "-", "*", "/"].includes(e.key)) handleOperator(e.key);
-    else if (e.key === "Enter" || e.key === "=") handleEqual();
-    else if (e.key === "Backspace") handleBackspace();
-    else if (e.key === "Escape") handleClear();
+    let action = "";
+
+    if (e.key >= "0" && e.key <= "9") action = "number";
+    else if (e.key === ".") action = "decimal";
+    else if (["+", "-", "*", "/"].includes(e.key)) action = "operator";
+    else if (e.key === "Enter" || e.key === "=") action = "equal";
+    else if (e.key === "Backspace") action = "backspace";
+    else if (e.key === "Escape") action = "clear";
     else return;
+
+    clearErrorIfNeeded(action);
+
+    if (action === "number") handleNumber(e.key);
+    else if (action === "decimal") handleDecimal();
+    else if (action === "operator") handleOperator(e.key);
+    else if (action === "equal") handleEqual();
+    else if (action === "backspace") handleBackspace();
+    else if (action === "clear") handleClear();
+
     updateDisplay();
   });
 })();
